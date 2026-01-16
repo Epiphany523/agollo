@@ -1,16 +1,19 @@
-// Copyright 2025 Apollo Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 package serverlist
 
@@ -18,11 +21,12 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/apolloconfig/agollo/v4/env/server"
+
 	"github.com/apolloconfig/agollo/v4/component"
 	"github.com/apolloconfig/agollo/v4/component/log"
 	"github.com/apolloconfig/agollo/v4/env"
 	"github.com/apolloconfig/agollo/v4/env/config"
-	"github.com/apolloconfig/agollo/v4/env/server"
 	"github.com/apolloconfig/agollo/v4/protocol/http"
 )
 
@@ -36,28 +40,41 @@ func init() {
 }
 
 // InitSyncServerIPList 初始化同步服务器信息列表
-func InitSyncServerIPList(appConfig func() config.AppConfig) {
-	go component.StartRefreshConfig(&SyncServerIPListComponent{appConfig})
+func InitSyncServerIPList(appConfig func() config.AppConfig) component.AbsComponent {
+	return &SyncServerIPListComponent{
+		appConfig: appConfig,
+		stopCh:    make(chan struct{}),
+	}
 }
 
 // SyncServerIPListComponent set timer for update ip list
 // interval : 20m
 type SyncServerIPListComponent struct {
 	appConfig func() config.AppConfig
+	stopCh    chan struct{}
 }
 
 // Start 启动同步服务器列表
 func (s *SyncServerIPListComponent) Start() {
 	SyncServerIPList(s.appConfig)
-	log.Debug("syncServerIpList started")
+	log.Debug("syncServerIpListComponent started")
 
 	t2 := time.NewTimer(refreshIPListInterval)
 	for {
 		select {
+		case <-s.stopCh:
+			log.Debug("syncServerIpListComponent stopped")
+			return
 		case <-t2.C:
 			SyncServerIPList(s.appConfig)
 			t2.Reset(refreshIPListInterval)
 		}
+	}
+}
+
+func (s *SyncServerIPListComponent) Stop() {
+	if s.stopCh != nil {
+		close(s.stopCh)
 	}
 }
 
