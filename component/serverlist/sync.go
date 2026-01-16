@@ -36,14 +36,18 @@ func init() {
 }
 
 // InitSyncServerIPList 初始化同步服务器信息列表
-func InitSyncServerIPList(appConfig func() config.AppConfig) {
-	go component.StartRefreshConfig(&SyncServerIPListComponent{appConfig})
+func InitSyncServerIPList(appConfig func() config.AppConfig) component.AbsComponent {
+	return &SyncServerIPListComponent{
+		appConfig: appConfig,
+		stopCh:    make(chan struct{}),
+	}
 }
 
 // SyncServerIPListComponent set timer for update ip list
 // interval : 20m
 type SyncServerIPListComponent struct {
 	appConfig func() config.AppConfig
+	stopCh    chan struct{}
 }
 
 // Start 启动同步服务器列表
@@ -54,10 +58,19 @@ func (s *SyncServerIPListComponent) Start() {
 	t2 := time.NewTimer(refreshIPListInterval)
 	for {
 		select {
+		case <-s.stopCh:
+			log.Debug("syncServerIpList stopped")
+			return
 		case <-t2.C:
 			SyncServerIPList(s.appConfig)
 			t2.Reset(refreshIPListInterval)
 		}
+	}
+}
+
+func (s *SyncServerIPListComponent) Stop() {
+	if s.stopCh != nil {
+		close(s.stopCh)
 	}
 }
 
