@@ -15,6 +15,7 @@
 package notify
 
 import (
+	"sync"
 	"time"
 
 	"github.com/apolloconfig/agollo/v4/component/log"
@@ -32,6 +33,7 @@ type ConfigComponent struct {
 	appConfigFunc func() config.AppConfig
 	cache         *storage.Cache
 	stopCh        chan struct{}
+	stopOnce      sync.Once
 }
 
 func NewConfigComponent(appConfigFunc func() config.AppConfig, cache *storage.Cache) *ConfigComponent {
@@ -75,7 +77,9 @@ func (c *ConfigComponent) Start() {
 
 // Stop 停止配置组件定时器
 func (c *ConfigComponent) Stop() {
-	if c.stopCh != nil {
-		close(c.stopCh)
-	}
+	c.stopOnce.Do(func() {
+		if c.stopCh != nil {
+			close(c.stopCh)
+		}
+	})
 }

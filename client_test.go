@@ -409,3 +409,32 @@ func TestGetConfigAndInitValNil(t *testing.T) {
 	Assert(t, cf, NilVal())
 	Assert(t, client.cache.GetConfig("testNotFound"), NilVal())
 }
+
+type testComponent struct {
+	status int // 0 start 1 stop
+}
+
+func (t *testComponent) Start() {
+	t.status = 0
+}
+func (t *testComponent) Stop() {
+	t.status = 1
+}
+
+func Test_internalClient_Close(t *testing.T) {
+	c := &internalClient{}
+	tc := &testComponent{}
+	go component.StartRefreshConfig(tc)
+	c.appendComponent(tc)
+
+	tc2 := &testComponent{}
+	go component.StartRefreshConfig(tc2)
+	c.appendComponent(tc2)
+	time.Sleep(300 * time.Millisecond) // wait goroutine
+	Assert(t, tc.status, Equal(0))
+	Assert(t, tc2.status, Equal(0))
+	c.Close()
+	c.Close() // replicate Close
+	Assert(t, tc.status, Equal(1))
+	Assert(t, tc2.status, Equal(1))
+}
